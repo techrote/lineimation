@@ -205,21 +205,38 @@
     return schedule;
   }
 
-  function curveFeedback(frame, pixels, width, height, mode, gain = 0.9) {
+  function curveFeedback(frame, pixels, width, height, mode, gain = 0.25, travel = 0, speed = 0.1, phase = 0) {
     assertPixels(pixels, width, height);
     const u = clamp(Number(gain) || 0, 0, 1);
+    if (u <= 0) return pixels.slice();
     const out = pixels.slice();
     const map = Curves.buildCurvePermutation(width, height, mode);
     const count = width * height;
-    const shift = ((frame * 13) % count + count) % count;
+    const wobble = Math.sin(frame * Number(speed || 0) + Number(phase || 0));
+    const shift = Math.round(wobble * Math.max(0, Number(travel) || 0));
     for (let i = 0; i < count; i += 1) {
-      const sourcePixel = map[(i + shift) % count];
+      const sourcePixel = map[((i + shift) % count + count) % count];
       const d = i * 4;
       const s = sourcePixel * 4;
       out[d] = pixels[d] * (1 - u) + pixels[s] * u;
       out[d + 1] = pixels[d + 1] * (1 - u) + pixels[s + 1] * u;
       out[d + 2] = pixels[d + 2] * (1 - u) + pixels[s + 2] * u;
-      out[d + 3] = 255;
+      out[d + 3] = pixels[d + 3];
+    }
+    return out;
+  }
+
+  function curveRemap(pixels, width, height, mode) {
+    assertPixels(pixels, width, height);
+    const map = Curves.buildCurvePermutation(width, height, mode);
+    const out = new Uint8ClampedArray(pixels.length);
+    for (let i = 0; i < map.length; i += 1) {
+      const d = map[i] * 4;
+      const s = i * 4;
+      out[d] = pixels[s];
+      out[d + 1] = pixels[s + 1];
+      out[d + 2] = pixels[s + 2];
+      out[d + 3] = pixels[s + 3];
     }
     return out;
   }

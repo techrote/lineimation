@@ -288,6 +288,72 @@
     return out;
   }
 
+  function normalizeParameter(key, value) {
+    const spec = PARAMETER_SPECS[key];
+    if (!spec) throw new RangeError('Unknown LINEIMATION parameter: ' + key);
+    let normalized = clamp(Number(value), spec.min, spec.max);
+    if (spec.integer) normalized = Math.round(normalized);
+    return normalized;
+  }
+
+  function transformColour(source, options) {
+    const out = new Uint8ClampedArray(source.length);
+    const hue = Number(options.hueShift || 0) * Math.PI * 2;
+    const c = Math.cos(hue);
+    const s = Math.sin(hue);
+    const saturation = Number(options.saturation);
+    const contrast = Number(options.contrast);
+    const brightness = Number(options.brightness);
+    const gamma = Math.max(0.01, Number(options.gamma));
+    const levels = Math.round(Number(options.posterize || 0));
+
+    const rr = 0.213 + c * 0.787 - s * 0.213;
+    const rg = 0.715 - c * 0.715 - s * 0.715;
+    const rb = 0.072 - c * 0.072 + s * 0.928;
+    const gr = 0.213 - c * 0.213 + s * 0.143;
+    const gg = 0.715 + c * 0.285 + s * 0.14;
+    const gb = 0.072 - c * 0.072 - s * 0.283;
+    const br = 0.213 - c * 0.213 - s * 0.787;
+    const bg = 0.715 - c * 0.715 + s * 0.715;
+    const bb = 0.072 + c * 0.928 + s * 0.072;
+
+    for (let i = 0; i < source.length; i += 4) {
+      const r0 = source[i] / 255;
+      const g0 = source[i + 1] / 255;
+      const b0 = source[i + 2] / 255;
+
+      let r = rr * r0 + rg * g0 + rb * b0;
+      let g = gr * r0 + gg * g0 + gb * b0;
+      let b = br * r0 + bg * g0 + bb * b0;
+
+      const grey = r * 0.2126 + g * 0.7152 + b * 0.0722;
+      r = grey + (r - grey) * saturation;
+      g = grey + (g - grey) * saturation;
+      b = grey + (b - grey) * saturation;
+
+      r = ((r - 0.5) * contrast + 0.5) * brightness;
+      g = ((g - 0.5) * contrast + 0.5) * brightness;
+      b = ((b - 0.5) * contrast + 0.5) * brightness;
+
+      r = Math.pow(clamp(r, 0, 1), 1 / gamma);
+      g = Math.pow(clamp(g, 0, 1), 1 / gamma);
+      b = Math.pow(clamp(b, 0, 1), 1 / gamma);
+
+      if (levels >= 2) {
+        const scale = levels - 1;
+        r = Math.round(r * scale) / scale;
+        g = Math.round(g * scale) / scale;
+        b = Math.round(b * scale) / scale;
+      }
+
+      out[i] = r * 255;
+      out[i + 1] = g * 255;
+      out[i + 2] = b * 255;
+      out[i + 3] = source[i + 3];
+    }
+    return out;
+  }
+
   class LineimationEngine {
     constructor(width, height, options = {}) {
       this.width = width;
@@ -297,10 +363,14 @@
       this.frame = 0;
       this.source = new Uint8ClampedArray(width * height * 4);
       this.current = this.source.slice();
-      this.curveMode = options.curveMode || Curves.CURVE_HILBERT;
-      this.passId = clamp(Math.trunc(options.passId || 0), 0, RECOVERED_PASSES.length - 1);
-      this.historyMix = clamp(options.historyMix === undefined ? 0.45 : Number(options.historyMix), 0, 1);
-      this.feedbackGain = clamp(options.feedbackGain === undefined ? 0.88 : Number(options.feedbackGain), 0, 1);
+      this.sceneId = 0;
+      this.curveMode = Curves.CURVE_HILBERT;
+      this.params = {};
+      this.groupBaselines = {};
+      const requestedScene = options.sceneId ?? options.passId ?? 0;
+      this.selectScene(requestedScene, false);
+      if (options.curveMode !== undefined) this.curveMode = clamp(Math.trunc(options.curveMode), 1, 6);
+      this.configure(options);
     }
 
     setSource(pixels) {
@@ -320,12 +390,64 @@
       this.atlas.fill(this.current);
     }
 
+    selectScene(sceneId, resetTimeline = true) {
+      const id = clamp(Math.trunc(sceneId), 0, RECOVERED_SCENES.length - 1);
+      const scene = RECOVERED_SCENES[id];
+      this.sceneId = id;
+      this.curveMode = scene.curveMode;
+      this.params = {};
+      for (const [key, spec] of Object.entries(PARAMETER_SPECS)) {
+        this.params[key] = normalizeParameter(key, scene.params[key] ?? spec.neutral ?? spec.min);
+      }
+      this.captureAllGroupBaselines();
+      if (resetTimeline) this.reset();
+      return scene;
+    }
+
+    captureAllGroupBaselines() {
+      for (const group of Object.keys(GROUP_SPECS)) this.captureGroupBaseline(group);
+    }
+
+    captureGroupBaseline(group) {
+      if (!GROUP_SPECS[group]) throw new RangeError('Unknown parameter group: ' + group);
+      const baseline = {};
+      for (const [key, spec] of Object.entries(PARAMETER_SPECS)) {
+        if (spec.group === group) baseline[key] = this.params[key];
+      }
+      this.groupBaselines[group] = baseline;
+      return baseline;
+    }
+
+    applyGroupMacro(group, factor) {
+      const groupSpec = GROUP_SPECS[group];
+      if (!groupSpec) throw new RangeError('Unknown parameter group: ' + group);
+      const amount = clamp(Number(factor), groupSpec.min, groupSpec.max);
+      const baseline = this.groupBaselines[group] || this.captureGroupBaseline(group);
+      for (const [key, base] of Object.entries(baseline)) {
+        const spec = PARAMETER_SPECS[key];
+        const neutral = Number(spec.neutral ?? 0);
+        const value = neutral + (base - neutral) * amount;
+        this.params[key] = normalizeParameter(key, value);
+      }
+      return this.params;
+    }
+
+    setParameter(key, value, rebaseGroup = false) {
+      this.params[key] = normalizeParameter(key, value);
+      if (rebaseGroup) this.captureGroupBaseline(PARAMETER_SPECS[key].group);
+      return this.params[key];
+    }
+
     configure(options = {}) {
+      const requestedScene = options.sceneId ?? options.passId;
+      if (requestedScene !== undefined && Math.trunc(requestedScene) !== this.sceneId) {
+        this.selectScene(requestedScene, options.resetScene !== false);
+      }
       if (options.curveMode !== undefined) this.curveMode = clamp(Math.trunc(options.curveMode), 1, 6);
-      if (options.passId !== undefined) this.passId = clamp(Math.trunc(options.passId), 0, RECOVERED_PASSES.length - 1);
-      if (options.historyMix !== undefined) this.historyMix = clamp(Number(options.historyMix), 0, 1);
-      if (options.feedbackGain !== undefined) this.feedbackGain = clamp(Number(options.feedbackGain), 0, 1);
       if (options.ringFrames !== undefined) this.setRingFrames(options.ringFrames);
+      for (const key of Object.keys(PARAMETER_SPECS)) {
+        if (options[key] !== undefined) this.setParameter(key, options[key]);
+      }
     }
 
     reset() {
@@ -336,25 +458,50 @@
     }
 
     step() {
-      const pass = RECOVERED_PASSES[this.passId];
-      const mode = this.curveMode || pass.curveMode;
-      const phase = (((this.frame * pass.phaseMultiplier) ^ (this.frame >>> pass.phaseShift)) >>> 0);
-      const schedule = buildFrameSchedule(this.atlas.frames, mode);
-      const selected = schedule[phase % schedule.length];
-      const neighbor = schedule[(phase + 1) % schedule.length];
-      const temporal = this.atlas.blendFrames(selected, neighbor, (phase & 255) / 255);
-      const driftX = ((phase >>> 3) % 7) - 3;
-      const driftY = ((phase >>> 6) % 5) - 2;
-      const animatedSource = translateSource(this.source, this.width, this.height, driftX, driftY, phase & 3);
-      let mixed = blendPixels(animatedSource, temporal, this.historyMix);
-      const mask = pass.feedbackMask;
-      if ((phase & mask) === 0) {
-        mixed = curveFeedback(this.frame, mixed, this.width, this.height, mode, clamp((pass.gain + this.feedbackGain) * 0.5, 0, 1));
-      }
-      this.atlas.writeCurve((this.frame + pass.writeOffset) % this.atlas.frames, mixed, mode);
-      this.current = mixed;
+      const scene = RECOVERED_SCENES[this.sceneId];
+      const p = this.params;
+      const mode = this.curveMode;
+      const time = this.frame * p.motionRate;
+      const phase = scene.phase + p.driftPhase;
+      const driftX = Math.round(Math.sin(time * p.driftFrequency + phase) * p.driftX);
+      const driftY = Math.round(Math.cos(time * p.driftFrequency * 0.83 + phase * 0.71) * p.driftY);
+      const animatedSource = translateSource(this.source, this.width, this.height, driftX, driftY, 0);
+      const colouredSource = transformColour(animatedSource, p);
+
+      const writeIndex = ((this.frame * p.writeStride + p.writeOffset) % this.atlas.frames + this.atlas.frames) % this.atlas.frames;
+      const maxLag = Math.max(1, this.atlas.frames - 1);
+      const lag = Math.min(maxLag, Math.max(1, p.historyLag));
+      const spread = Math.min(maxLag, Math.max(1, p.historySpread));
+      const historyA = writeIndex - lag;
+      const historyB = historyA - spread;
+      const temporal = this.atlas.blendFrames(historyA, historyB, p.historyBlend);
+      const base = blendPixels(colouredSource, temporal, p.historyMix);
+
+      const feedbackMix = clamp(p.feedbackGain * p.curveFeedbackMix, 0, 0.9);
+      const target = curveFeedback(
+        this.frame,
+        base,
+        this.width,
+        this.height,
+        mode,
+        feedbackMix,
+        p.feedbackDistance,
+        p.feedbackSpeed,
+        phase
+      );
+
+      this.current = blendPixels(this.current, target, p.frameResponse);
+
+      const mapped = curveRemap(this.current, this.width, this.height, mode);
+      const stored = blendPixels(this.current, mapped, p.curveWriteMix);
+      this.atlas.frameView(writeIndex).set(stored);
+
       this.frame += 1;
       return this.current;
+    }
+
+    scene() {
+      return RECOVERED_SCENES[this.sceneId];
     }
 
     state() {
@@ -364,10 +511,10 @@
         height: this.height,
         frame: this.frame,
         ringFrames: this.ringFrames,
+        sceneId: this.sceneId,
+        passId: this.sceneId,
         curveMode: this.curveMode,
-        passId: this.passId,
-        historyMix: this.historyMix,
-        feedbackGain: this.feedbackGain
+        params: Object.freeze({ ...this.params })
       });
     }
   }

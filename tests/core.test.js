@@ -171,25 +171,47 @@ test('timeline reset returns to the selected recovered attractor', () => {
   assert.equal(Core.checksum(engine.current), sceneStart);
 });
 
-test('recovered scene identity can be mixed back toward the raw source', () => {
+test('recovered scene identity controls the raw/attractor input blend', () => {
   const width = 32;
   const height = 20;
   const source = Core.makeTestPattern(width, height);
-  const engine = new Core.LineimationEngine(width, height, { ringFrames: 12, sceneId: 4 });
-  engine.setSource(source);
-  const recovered = engine.sceneSource.slice();
-  assert.notEqual(Core.checksum(recovered), Core.checksum(source));
 
-  engine.setParameter('sceneIdentity', 0);
-  engine.reset();
-  engine.step();
+  const rawEngine = new Core.LineimationEngine(width, height, { ringFrames: 12, sceneId: 4 });
+  const sceneEngine = new Core.LineimationEngine(width, height, { ringFrames: 12, sceneId: 4 });
+  rawEngine.setSource(source);
+  sceneEngine.setSource(source);
 
-  const zeroIdentity = engine.current;
-  let rawDistance = 0;
-  let recoveredDistance = 0;
-  for (let i = 0; i < source.length; i += 4) {
-    rawDistance += Math.abs(zeroIdentity[i] - source[i]) + Math.abs(zeroIdentity[i + 1] - source[i + 1]) + Math.abs(zeroIdentity[i + 2] - source[i + 2]);
-    recoveredDistance += Math.abs(zeroIdentity[i] - recovered[i]) + Math.abs(zeroIdentity[i + 1] - recovered[i + 1]) + Math.abs(zeroIdentity[i + 2] - recovered[i + 2]);
+  const neutral = {
+    historyMix: 0,
+    feedbackGain: 0,
+    curveFeedbackMix: 0,
+    curveWriteMix: 0,
+    driftX: 0,
+    driftY: 0,
+    hueShift: 0,
+    saturation: 1,
+    contrast: 1,
+    brightness: 1,
+    gamma: 1,
+    posterize: 0,
+    frameResponse: 0.25
+  };
+  rawEngine.configure(neutral);
+  sceneEngine.configure(neutral);
+  rawEngine.setParameter('sceneIdentity', 0);
+  sceneEngine.setParameter('sceneIdentity', 1);
+
+  for (let i = 0; i < 12; i += 1) {
+    rawEngine.step();
+    sceneEngine.step();
   }
-  assert.ok(rawDistance < recoveredDistance);
+
+  let rawToSource = 0;
+  let sceneToSource = 0;
+  for (let i = 0; i < source.length; i += 4) {
+    rawToSource += Math.abs(rawEngine.current[i] - source[i]) + Math.abs(rawEngine.current[i + 1] - source[i + 1]) + Math.abs(rawEngine.current[i + 2] - source[i + 2]);
+    sceneToSource += Math.abs(sceneEngine.current[i] - source[i]) + Math.abs(sceneEngine.current[i + 1] - source[i + 1]) + Math.abs(sceneEngine.current[i + 2] - source[i + 2]);
+  }
+
+  assert.ok(rawToSource < sceneToSource);
 });

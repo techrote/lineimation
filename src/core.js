@@ -33,6 +33,7 @@
     feedbackGain: Object.freeze({ group: 'temporal', label: 'Feedback gain', min: 0, max: 0.9, step: 0.01, digits: 2, neutral: 0 }),
     feedbackDistance: Object.freeze({ group: 'temporal', label: 'Feedback travel', min: 0, max: 160, step: 1, digits: 0, neutral: 0, integer: true }),
     feedbackSpeed: Object.freeze({ group: 'temporal', label: 'Feedback speed', min: 0.01, max: 2, step: 0.01, digits: 2, neutral: 0 }),
+    feedbackPhase: Object.freeze({ group: 'temporal', label: 'Feedback phase', min: -3.1416, max: 3.1416, step: 0.01, digits: 2, neutral: 0 }),
     frameResponse: Object.freeze({ group: 'temporal', label: 'Frame response', min: 0.02, max: 0.25, step: 0.005, digits: 3, neutral: 0 }),
 
     curveWriteMix: Object.freeze({ group: 'structure', label: 'Curve write mix', min: 0, max: 1, step: 0.01, digits: 2, neutral: 0 }),
@@ -81,6 +82,7 @@
       feedbackGain: rounded(0.08 + (recoveredGain - 0.8) * 0.55, 3),
       feedbackDistance: 5 + ((index * 7) % 47),
       feedbackSpeed: rounded(0.05 + (index % 6) * 0.045, 3),
+      feedbackPhase: rounded(phase * 0.6, 3),
       frameResponse: rounded(0.075 + (index % 5) * 0.0175, 4),
 
       curveWriteMix: rounded(0.16 + (index % 6) * 0.075, 3),
@@ -487,7 +489,7 @@
         feedbackMix,
         p.feedbackDistance,
         p.feedbackSpeed,
-        phase
+        phase + p.feedbackPhase
       );
 
       this.current = blendPixels(this.current, target, p.frameResponse);

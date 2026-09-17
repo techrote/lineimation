@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>LINEIMATION // recovered texture animator</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <div><strong>LINEIMATION</strong><span>recovered texture animation renderer</span></div>
+    <div class="statusline"><span id="measuredFps">-- fps</span><span id="memoryReadout">-- MiB ring</span><span id="checksum">#--------</span></div>
+  </header>
+  <main>
+    <section class="stage">
+      <div class="canvas-shell"><canvas id="canvas" width="640" height="360"></canvas></div>
+      <div class="transport">
+        <button id="playButton">PAUSE</button>
+        <button id="stepButton">STEP</button>
+        <button id="resetButton">FRAME 0</button>
+        <span id="frameReadout">frame 0</span>
+        <span id="status">initialising</span>
+      </div>
+    </section>
+    <aside>
+      <section>
+        <h2>Source</h2>
+        <label class="file-label">OPEN IMAGE<input id="fileInput" type="file" accept="image/*"></label>
+        <button id="testPatternButton">PROCEDURAL SOURCE</button>
+        <button id="exportButton">EXPORT PNG</button>
+      </section>
+      <section>
+        <h2>Curve transport</h2>
+        <label>Curve<select id="curveMode"></select></label>
+        <label>Recovered pass<select id="passMode"></select></label>
+        <label>Frame ring<input id="ringFrames" type="range" min="4" max="96" step="4" value="24"><output id="ringFramesOut">24</output></label>
+        <label>History mix<input id="historyMix" type="range" min="0" max="1" step="0.01" value="0.45"><output id="historyMixOut">0.45</output></label>
+        <label>Feedback gain<input id="feedbackGain" type="range" min="0" max="1" step="0.01" value="0.88"><output id="feedbackGainOut">0.88</output></label>
+        <label>Playback fps<input id="fps" type="range" min="1" max="30" step="1" value="12"><output id="fpsOut">12</output></label>
+        <label class="check"><input id="curveOverlay" type="checkbox"> show curve trace</label>
+      </section>
+      <section class="notes">
+        <h2>Recovered model</h2>
+        <p>96-frame maximum ring · curve-addressed writes · curve-scheduled history · temporal feedback.</p>
+        <p>Space toggles play. Right arrow steps. R resets the timeline.</p>
+      </section>
+    </aside>
+  </main>
+  <script src="src/curves.js"></script>
+  <script src="src/core.js"></script>
+  <script src="src/app.js"></script>
+</body>
+</html>

@@ -680,6 +680,8 @@
     LineimationEngine,
     buildFrameSchedule,
     curveFeedback,
+    legacyCurveFeedback,
+    buildLegacySceneAttractor,
     curveRemap,
     blendPixels,
     translateSource,

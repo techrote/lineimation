@@ -550,13 +550,18 @@
     LINEIMATION_FORMAT,
     FRAME_RING,
     TILE,
+    GROUP_SPECS,
+    PARAMETER_SPECS,
+    RECOVERED_SCENES,
     RECOVERED_PASSES,
     FrameAtlas,
     LineimationEngine,
     buildFrameSchedule,
     curveFeedback,
+    curveRemap,
     blendPixels,
     translateSource,
+    transformColour,
     makeTestPattern,
     checksum
   });

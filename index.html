@@ -3,46 +3,54 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>LINEIMATION // recovered texture animator</title>
+  <title>LINEIMATION // pseudo-fractal explorer</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header>
-    <div><strong>LINEIMATION</strong><span>recovered texture animation renderer</span></div>
-    <div class="statusline"><span id="measuredFps">-- fps</span><span id="memoryReadout">-- MiB ring</span><span id="checksum">#--------</span></div>
+    <div><strong>LINEIMATION</strong><span>evolving pseudo-fractal flight instrument</span></div>
+    <div class="statusline">
+      <span id="fpsReadout">-- fps</span>
+      <span id="zoomReadout">zoom 2^0.00</span>
+      <span id="modeReadout">--</span>
+    </div>
   </header>
+
   <main>
     <section class="stage">
-      <div class="canvas-shell"><canvas id="canvas" width="640" height="360"></canvas></div>
+      <div class="canvas-shell">
+        <canvas id="canvas" aria-label="Live evolving fractal explorer"></canvas>
+        <pre id="fatal" class="fatal hidden"></pre>
+      </div>
       <div class="transport">
-        <button id="playButton">PAUSE</button>
-        <button id="stepButton">STEP</button>
-        <button id="resetButton">FRAME 0</button>
-        <span id="frameReadout">frame 0</span>
-        <span id="sceneReadout">scene 00</span>
-        <span id="status">initialising</span>
+        <button id="pauseButton">PAUSE</button>
+        <button id="recenterButton">RECENTER</button>
+        <button id="resetButton">RESET PRESET</button>
+        <button id="shotButton">PNG</button>
+        <span id="status">initialising WebGL2</span>
       </div>
     </section>
 
     <aside>
       <section>
-        <h2>Source</h2>
-        <label class="file-label">OPEN IMAGE<input id="fileInput" type="file" accept="image/*"></label>
-        <button id="testPatternButton">PROCEDURAL SOURCE</button>
-        <button id="exportButton">EXPORT PNG</button>
+        <h2>Explorer</h2>
+        <label>Preset<select id="preset"></select></label>
+        <label>Fractal family<select id="fractalMode"></select></label>
+        <label>Camera<select id="cameraMode"></select></label>
+        <p class="microcopy">Drag to steer the focal point. Mouse wheel adds manual logarithmic zoom. The automatic zoom parameter may run continuously inward or outward.</p>
       </section>
 
       <section>
-        <h2>Scene</h2>
-        <label>Scene<select id="sceneMode"></select></label>
-        <label>Curve<select id="curveMode"></select></label>
-        <button id="resetSceneButton">RESTORE SCENE DEFAULTS</button>
-        <p class="microcopy">Scenes never change during playback. Selecting one explicitly rebuilds its recovered visual attractor, then playback evolves only within that scene.</p>
+        <h2>Shader embellishment</h2>
+        <label>Recovered texture<select id="recoveredScene"></select></label>
+        <label class="file-label">LOAD DETAIL IMAGE<input id="textureFile" type="file" accept="image/*"></label>
+        <button id="restoreRecoveredButton">USE RECOVERED TEXTURE</button>
+        <p class="microcopy">The old frame-ring/curve artwork survives as an optional material source underneath the fractal field rather than controlling the camera or geometry.</p>
       </section>
 
       <section>
         <h2>Grouped proportional controls</h2>
-        <p class="microcopy">Each macro scales its linked controls around the scene baseline while preserving their relative proportions.</p>
+        <p class="microcopy">Each macro scales its bank around the current preset/edit baseline while preserving relative relationships.</p>
         <div id="groupMacros" class="macro-bank"></div>
       </section>
 
@@ -51,23 +59,17 @@
         <div id="expertControls" class="expert-bank"></div>
       </section>
 
-      <section>
-        <h2>Timeline</h2>
-        <label>Frame ring<input id="ringFrames" type="range" min="4" max="96" step="4" value="24"><output id="ringFramesOut">24</output></label>
-        <label>Playback fps<input id="fps" type="range" min="1" max="30" step="1" value="12"><output id="fpsOut">12</output></label>
-        <label class="check"><input id="curveOverlay" type="checkbox"> show curve trace</label>
-      </section>
-
       <section class="notes">
-        <h2>Recovered model</h2>
-        <p>96-frame maximum ring · six curve transports · curve-addressed memory · stable temporal feedback · 28 explicit recovered scenes.</p>
-        <p>Space toggles play. Right arrow steps. R resets the current scene timeline.</p>
+        <h2>Model</h2>
+        <p><strong>Silhouette lock</strong> decouples the static outer field from the moving interior field: the boundary can remain fixed while recurrence, folds, writhe and apparent rotation continue inside it.</p>
+        <p>Space toggles pause · R resets preset · H hides UI · F fullscreen.</p>
       </section>
     </aside>
   </main>
 
   <script src="src/curves.js"></script>
-  <script src="src/core.js"></script>
+  <script src/core.js"></script>
+  <script src="src/explorer-core.js"></script>
   <script src="src/app.js"></script>
 </body>
 </html>

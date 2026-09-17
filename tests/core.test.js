@@ -131,3 +131,65 @@ test('expert parameter surface is broad and grouped', () => {
   assert.deepEqual([...represented].sort(), ['colour', 'motion', 'structure', 'temporal']);
   for (const group of represented) assert.ok(Core.GROUP_SPECS[group]);
 });
+
+test('recovered attractors restore distinct visual states before playback', () => {
+  const width = 36;
+  const height = 24;
+  const source = Core.makeTestPattern(width, height);
+  const checksums = new Set();
+
+  for (const scene of Core.RECOVERED_SCENES) {
+    const engine = new Core.LineimationEngine(width, height, { ringFrames: 12, sceneId: scene.id });
+    engine.setSource(source);
+    checksums.add(Core.checksum(engine.current));
+
+    let difference = 0;
+    for (let i = 0; i < source.length; i += 4) {
+      difference += Math.abs(engine.current[i] - source[i]);
+      difference += Math.abs(engine.current[i + 1] - source[i + 1]);
+      difference += Math.abs(engine.current[i + 2] - source[i + 2]);
+    }
+    assert.ok(difference / (width * height * 3) > 8, scene.name + ' collapsed back to the raw source');
+  }
+
+  assert.equal(checksums.size, Core.RECOVERED_SCENES.length);
+});
+
+test('timeline reset returns to the selected recovered attractor', () => {
+  const width = 32;
+  const height = 20;
+  const source = Core.makeTestPattern(width, height);
+  const engine = new Core.LineimationEngine(width, height, { ringFrames: 12, sceneId: 9 });
+  engine.setSource(source);
+  const sceneStart = Core.checksum(engine.current);
+  assert.notEqual(sceneStart, Core.checksum(source));
+
+  for (let i = 0; i < 12; i += 1) engine.step();
+  assert.notEqual(Core.checksum(engine.current), sceneStart);
+
+  engine.reset();
+  assert.equal(Core.checksum(engine.current), sceneStart);
+});
+
+test('recovered scene identity can be mixed back toward the raw source', () => {
+  const width = 32;
+  const height = 20;
+  const source = Core.makeTestPattern(width, height);
+  const engine = new Core.LineimationEngine(width, height, { ringFrames: 12, sceneId: 4 });
+  engine.setSource(source);
+  const recovered = engine.sceneSource.slice();
+  assert.notEqual(Core.checksum(recovered), Core.checksum(source));
+
+  engine.setParameter('sceneIdentity', 0);
+  engine.reset();
+  engine.step();
+
+  const zeroIdentity = engine.current;
+  let rawDistance = 0;
+  let recoveredDistance = 0;
+  for (let i = 0; i < source.length; i += 4) {
+    rawDistance += Math.abs(zeroIdentity[i] - source[i]) + Math.abs(zeroIdentity[i + 1] - source[i + 1]) + Math.abs(zeroIdentity[i + 2] - source[i + 2]);
+    recoveredDistance += Math.abs(zeroIdentity[i] - recovered[i]) + Math.abs(zeroIdentity[i + 1] - recovered[i + 1]) + Math.abs(zeroIdentity[i + 2] - recovered[i + 2]);
+  }
+  assert.ok(rawDistance < recoveredDistance);
+});

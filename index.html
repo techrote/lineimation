@@ -19,9 +19,11 @@
         <button id="stepButton">STEP</button>
         <button id="resetButton">FRAME 0</button>
         <span id="frameReadout">frame 0</span>
+        <span id="sceneReadout">scene 00</span>
         <span id="status">initialising</span>
       </div>
     </section>
+
     <aside>
       <section>
         <h2>Source</h2>
@@ -29,23 +31,41 @@
         <button id="testPatternButton">PROCEDURAL SOURCE</button>
         <button id="exportButton">EXPORT PNG</button>
       </section>
+
       <section>
-        <h2>Curve transport</h2>
+        <h2>Scene</h2>
+        <label>Scene<select id="sceneMode"></select></label>
         <label>Curve<select id="curveMode"></select></label>
-        <label>Recovered pass<select id="passMode"></select></label>
+        <button id="resetSceneButton">RESTORE SCENE DEFAULTS</button>
+        <p class="microcopy">Scenes never change during playback. Selecting one explicitly loads its own stable parameter baseline.</p>
+      </section>
+
+      <section>
+        <h2>Grouped proportional controls</h2>
+        <p class="microcopy">Each macro scales its linked controls around the scene baseline while preserving their relative proportions.</p>
+        <div id="groupMacros" class="macro-bank"></div>
+      </section>
+
+      <section>
+        <h2>Expert parameters</h2>
+        <div id="expertControls" class="expert-bank"></div>
+      </section>
+
+      <section>
+        <h2>Timeline</h2>
         <label>Frame ring<input id="ringFrames" type="range" min="4" max="96" step="4" value="24"><output id="ringFramesOut">24</output></label>
-        <label>History mix<input id="historyMix" type="range" min="0" max="1" step="0.01" value="0.45"><output id="historyMixOut">0.45</output></label>
-        <label>Feedback gain<input id="feedbackGain" type="range" min="0" max="1" step="0.01" value="0.88"><output id="feedbackGainOut">0.88</output></label>
         <label>Playback fps<input id="fps" type="range" min="1" max="30" step="1" value="12"><output id="fpsOut">12</output></label>
         <label class="check"><input id="curveOverlay" type="checkbox"> show curve trace</label>
       </section>
+
       <section class="notes">
         <h2>Recovered model</h2>
-        <p>96-frame maximum ring · curve-addressed writes · curve-scheduled history · temporal feedback.</p>
-        <p>Space toggles play. Right arrow steps. R resets the timeline.</p>
+        <p>96-frame maximum ring · six curve transports · curve-addressed memory · stable temporal feedback · 28 explicit recovered scenes.</p>
+        <p>Space toggles play. Right arrow steps. R resets the current scene timeline.</p>
       </section>
     </aside>
   </main>
+
   <script src="src/curves.js"></script>
   <script src="src/core.js"></script>
   <script src="src/app.js"></script>

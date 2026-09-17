@@ -73,3 +73,61 @@ test('engine is deterministic and evolves the timeline', () => {
   assert.notEqual(ca, initial);
   assert.equal(a.state().format, Core.LINEIMATION_FORMAT);
 });
+
+test('recovered scenes are explicit settings and never auto-cycle', () => {
+  assert.equal(Core.RECOVERED_SCENES.length, 28);
+  const source = Core.makeTestPattern(24, 16);
+  const engine = new Core.LineimationEngine(24, 16, { ringFrames: 8, sceneId: 11 });
+  engine.setSource(source);
+  for (let frame = 0; frame < 80; frame += 1) engine.step();
+  assert.equal(engine.state().sceneId, 11);
+  assert.equal(engine.state().passId, 11);
+  engine.selectScene(4);
+  assert.equal(engine.state().sceneId, 4);
+  assert.equal(engine.frame, 0);
+});
+
+test('default scene evolution has a bounded single-frame response', () => {
+  const width = 24;
+  const height = 16;
+  const source = Core.makeTestPattern(width, height);
+  for (const scene of Core.RECOVERED_SCENES) {
+    const engine = new Core.LineimationEngine(width, height, { ringFrames: 12, sceneId: scene.id });
+    engine.setSource(source);
+    let previous = engine.current.slice();
+    for (let frame = 0; frame < 24; frame += 1) {
+      const next = engine.step();
+      let maximumDelta = 0;
+      for (let i = 0; i < next.length; i += 4) {
+        maximumDelta = Math.max(
+          maximumDelta,
+          Math.abs(next[i] - previous[i]),
+          Math.abs(next[i + 1] - previous[i + 1]),
+          Math.abs(next[i + 2] - previous[i + 2])
+        );
+      }
+      assert.ok(maximumDelta <= 40, scene.name + ' exceeded anti-flash delta: ' + maximumDelta);
+      previous = next.slice();
+    }
+  }
+});
+
+test('group macros preserve proportional relationships around their baseline', () => {
+  const engine = new Core.LineimationEngine(16, 12, { sceneId: 5 });
+  const beforeX = engine.params.driftX;
+  const beforeY = engine.params.driftY;
+  engine.applyGroupMacro('motion', 1.5);
+  assert.ok(Math.abs(engine.params.driftX / beforeX - 1.5) < 0.02);
+  assert.ok(Math.abs(engine.params.driftY / beforeY - 1.5) < 0.02);
+
+  engine.setParameter('driftX', 10, true);
+  engine.applyGroupMacro('motion', 1.4);
+  assert.ok(Math.abs(engine.params.driftX - 14) < 0.01);
+});
+
+test('expert parameter surface is broad and grouped', () => {
+  assert.ok(Object.keys(Core.PARAMETER_SPECS).length >= 20);
+  const represented = new Set(Object.values(Core.PARAMETER_SPECS).map(spec => spec.group));
+  assert.deepEqual([...represented].sort(), ['colour', 'motion', 'structure', 'temporal']);
+  for (const group of represented) assert.ok(Core.GROUP_SPECS[group]);
+});

@@ -303,7 +303,11 @@
   buildExpertControls();
 
   els.file.addEventListener('change', event => loadImage(event.target.files && event.target.files[0]));
-  els.scene.addEventListener('change', () => selectScene(els.scene.value));
+  els.scene.addEventListener('change', () => {
+    const requested = els.scene.value;
+    setStatus('reconstructing recovered scene…');
+    requestAnimationFrame(() => selectScene(requested));
+  });
   els.curve.addEventListener('change', () => {
     engine.configure({ curveMode: Number(els.curve.value) });
     engine.reset();

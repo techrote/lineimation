@@ -12,20 +12,107 @@
   const FRAME_RING = 96;
   const TILE = 16;
 
-  const RECOVERED_PASSES = Object.freeze(Array.from({ length: 28 }, (_, index) => {
-    const masks = [2, 3, 5, 9];
-    const gainSteps = [0.82, 0.86, 0.9, 0.94, 0.88, 0.84, 0.92, 0.86];
+  const GROUP_SPECS = Object.freeze({
+    motion: Object.freeze({ label: 'Motion', min: 0.25, max: 2, step: 0.01 }),
+    temporal: Object.freeze({ label: 'Temporal', min: 0.25, max: 2, step: 0.01 }),
+    structure: Object.freeze({ label: 'Structure', min: 0.25, max: 2, step: 0.01 }),
+    colour: Object.freeze({ label: 'Colour', min: 0.25, max: 2, step: 0.01 })
+  });
+
+  const PARAMETER_SPECS = Object.freeze({
+    motionRate: Object.freeze({ group: 'motion', label: 'Motion rate', min: 0.05, max: 2.5, step: 0.01, digits: 2, neutral: 0 }),
+    driftX: Object.freeze({ group: 'motion', label: 'Horizontal drift', min: 0, max: 32, step: 0.25, digits: 2, neutral: 0 }),
+    driftY: Object.freeze({ group: 'motion', label: 'Vertical drift', min: 0, max: 32, step: 0.25, digits: 2, neutral: 0 }),
+    driftFrequency: Object.freeze({ group: 'motion', label: 'Drift frequency', min: 0.01, max: 1.5, step: 0.01, digits: 2, neutral: 0 }),
+    driftPhase: Object.freeze({ group: 'motion', label: 'Drift phase', min: -3.1416, max: 3.1416, step: 0.01, digits: 2, neutral: 0 }),
+
+    historyMix: Object.freeze({ group: 'temporal', label: 'History mix', min: 0, max: 0.95, step: 0.01, digits: 2, neutral: 0 }),
+    historyLag: Object.freeze({ group: 'temporal', label: 'History lag', min: 1, max: 48, step: 1, digits: 0, neutral: 0, integer: true }),
+    historySpread: Object.freeze({ group: 'temporal', label: 'History spread', min: 1, max: 24, step: 1, digits: 0, neutral: 0, integer: true }),
+    historyBlend: Object.freeze({ group: 'temporal', label: 'History crossfade', min: 0, max: 1, step: 0.01, digits: 2, neutral: 0 }),
+    feedbackGain: Object.freeze({ group: 'temporal', label: 'Feedback gain', min: 0, max: 0.9, step: 0.01, digits: 2, neutral: 0 }),
+    feedbackDistance: Object.freeze({ group: 'temporal', label: 'Feedback travel', min: 0, max: 160, step: 1, digits: 0, neutral: 0, integer: true }),
+    feedbackSpeed: Object.freeze({ group: 'temporal', label: 'Feedback speed', min: 0.01, max: 2, step: 0.01, digits: 2, neutral: 0 }),
+    frameResponse: Object.freeze({ group: 'temporal', label: 'Frame response', min: 0.02, max: 0.25, step: 0.005, digits: 3, neutral: 0 }),
+
+    curveWriteMix: Object.freeze({ group: 'structure', label: 'Curve write mix', min: 0, max: 1, step: 0.01, digits: 2, neutral: 0 }),
+    curveFeedbackMix: Object.freeze({ group: 'structure', label: 'Curve feedback mix', min: 0, max: 1, step: 0.01, digits: 2, neutral: 0 }),
+    writeOffset: Object.freeze({ group: 'structure', label: 'Ring write offset', min: 0, max: 95, step: 1, digits: 0, neutral: 0, integer: true }),
+    writeStride: Object.freeze({ group: 'structure', label: 'Ring write stride', min: 1, max: 8, step: 1, digits: 0, neutral: 0, integer: true }),
+
+    hueShift: Object.freeze({ group: 'colour', label: 'Hue rotation', min: -0.5, max: 0.5, step: 0.005, digits: 3, neutral: 0 }),
+    saturation: Object.freeze({ group: 'colour', label: 'Saturation', min: 0, max: 2.5, step: 0.01, digits: 2, neutral: 1 }),
+    contrast: Object.freeze({ group: 'colour', label: 'Contrast', min: 0.4, max: 2, step: 0.01, digits: 2, neutral: 1 }),
+    brightness: Object.freeze({ group: 'colour', label: 'Brightness', min: 0.5, max: 1.5, step: 0.01, digits: 2, neutral: 1 }),
+    gamma: Object.freeze({ group: 'colour', label: 'Gamma', min: 0.5, max: 2, step: 0.01, digits: 2, neutral: 1 }),
+    posterize: Object.freeze({ group: 'colour', label: 'Posterize levels', min: 0, max: 32, step: 1, digits: 0, neutral: 0, integer: true })
+  });
+
+  const SCENE_STEMS = Object.freeze([
+    'Veil', 'Fold', 'Current', 'Lattice', 'Bloom', 'Relay', 'Orbit',
+    'Trellis', 'Glass', 'Drift', 'Halo', 'Wake', 'Contour', 'Echo',
+    'Ribbon', 'Field', 'Tide', 'Mesh', 'Pulse', 'Arc', 'Prism',
+    'Trace', 'Basin', 'Cairn', 'Woven', 'Flare', 'Channel', 'Afterimage'
+  ]);
+
+  function rounded(value, digits = 4) {
+    const scale = 10 ** digits;
+    return Math.round(value * scale) / scale;
+  }
+
+  function makeScene(index) {
+    const curveMode = (index % 6) + 1;
+    const oldMasks = [2, 3, 5, 9];
+    const oldGains = [0.82, 0.86, 0.9, 0.94, 0.88, 0.84, 0.92, 0.86];
+    const mask = oldMasks[index % oldMasks.length];
+    const recoveredGain = oldGains[index % oldGains.length];
+    const phase = ((index * 0.754877666) % 1) * Math.PI * 2 - Math.PI;
+    const params = {
+      motionRate: rounded(0.16 + (index % 7) * 0.075, 3),
+      driftX: rounded(2 + ((index * 3) % 13) * 0.7, 2),
+      driftY: rounded(2 + ((index * 5) % 11) * 0.65, 2),
+      driftFrequency: rounded(0.06 + (index % 5) * 0.045, 3),
+      driftPhase: rounded(phase, 3),
+
+      historyMix: rounded(0.16 + (index % 6) * 0.065, 3),
+      historyLag: 2 + ((index * 3) % 11),
+      historySpread: 1 + ((index * 5) % 7),
+      historyBlend: rounded(0.22 + (index % 5) * 0.12, 3),
+      feedbackGain: rounded(0.08 + (recoveredGain - 0.8) * 0.55, 3),
+      feedbackDistance: 5 + ((index * 7) % 47),
+      feedbackSpeed: rounded(0.05 + (index % 6) * 0.045, 3),
+      frameResponse: rounded(0.075 + (index % 5) * 0.0175, 4),
+
+      curveWriteMix: rounded(0.16 + (index % 6) * 0.075, 3),
+      curveFeedbackMix: rounded(0.12 + (index % 7) * 0.055, 3),
+      writeOffset: index % 24,
+      writeStride: 1 + (index % 3),
+
+      hueShift: rounded((((index * 0.137) % 1) - 0.5) * 0.42, 3),
+      saturation: rounded(0.82 + (index % 5) * 0.13, 2),
+      contrast: rounded(0.88 + (index % 6) * 0.075, 3),
+      brightness: rounded(0.9 + (index % 4) * 0.045, 3),
+      gamma: rounded(0.86 + (index % 5) * 0.07, 3),
+      posterize: index % 7 === 0 ? 10 + (index % 4) * 2 : 0
+    };
     return Object.freeze({
       id: index,
-      name: `Pass ${String(index).padStart(2, '0')}`,
-      phaseMultiplier: index + 3,
-      phaseShift: index % 5,
-      curveMode: (index % 6) + 1,
-      writeOffset: index,
-      feedbackMask: masks[index % masks.length],
-      gain: gainSteps[index % gainSteps.length]
+      name: 'Scene ' + String(index).padStart(2, '0') + ' · ' + SCENE_STEMS[index],
+      curveMode,
+      phase,
+      recovered: Object.freeze({
+        phaseMultiplier: index + 3,
+        phaseShift: index % 5,
+        feedbackMask: mask,
+        gain: recoveredGain,
+        writeOffset: index
+      }),
+      params: Object.freeze(params)
     });
-  }));
+  }
+
+  const RECOVERED_SCENES = Object.freeze(Array.from({ length: 28 }, (_, index) => makeScene(index)));
+  const RECOVERED_PASSES = RECOVERED_SCENES;
 
   function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));

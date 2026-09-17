@@ -38,6 +38,7 @@
 
     curveWriteMix: Object.freeze({ group: 'structure', label: 'Curve write mix', min: 0, max: 1, step: 0.01, digits: 2, neutral: 0 }),
     curveFeedbackMix: Object.freeze({ group: 'structure', label: 'Curve feedback mix', min: 0, max: 1, step: 0.01, digits: 2, neutral: 0 }),
+    sceneIdentity: Object.freeze({ group: 'structure', label: 'Recovered scene identity', min: 0, max: 1, step: 0.01, digits: 2, neutral: 0 }),
     writeOffset: Object.freeze({ group: 'structure', label: 'Ring write offset', min: 0, max: 95, step: 1, digits: 0, neutral: 0, integer: true }),
     writeStride: Object.freeze({ group: 'structure', label: 'Ring write stride', min: 1, max: 8, step: 1, digits: 0, neutral: 0, integer: true }),
 
@@ -87,6 +88,7 @@
 
       curveWriteMix: rounded(0.16 + (index % 6) * 0.075, 3),
       curveFeedbackMix: rounded(0.12 + (index % 7) * 0.055, 3),
+      sceneIdentity: rounded(0.92 + (index % 4) * 0.01, 2),
       writeOffset: index % 24,
       writeStride: 1 + (index % 3),
 
@@ -107,7 +109,8 @@
         phaseShift: index % 5,
         feedbackMask: mask,
         gain: recoveredGain,
-        writeOffset: index
+        writeOffset: index,
+        warmupSteps: 32 + (index % 4) * 4
       }),
       params: Object.freeze(params)
     });
@@ -226,6 +229,64 @@
       out[d + 3] = pixels[d + 3];
     }
     return out;
+  }
+
+
+  function legacyCurveFeedback(frame, pixels, width, height, mode, gain = 0.9) {
+    assertPixels(pixels, width, height);
+    const u = clamp(Number(gain) || 0, 0, 1);
+    const out = pixels.slice();
+    const map = Curves.buildCurvePermutation(width, height, mode);
+    const count = width * height;
+    const shift = ((frame * 13) % count + count) % count;
+    for (let i = 0; i < count; i += 1) {
+      const sourcePixel = map[(i + shift) % count];
+      const d = i * 4;
+      const s = sourcePixel * 4;
+      out[d] = pixels[d] * (1 - u) + pixels[s] * u;
+      out[d + 1] = pixels[d + 1] * (1 - u) + pixels[s + 1] * u;
+      out[d + 2] = pixels[d + 2] * (1 - u) + pixels[s + 2] * u;
+      out[d + 3] = 255;
+    }
+    return out;
+  }
+
+  function buildLegacySceneAttractor(source, width, height, scene, frames = 24, curveMode = scene.curveMode) {
+    assertPixels(source, width, height, 'source');
+    const ringFrames = clamp(Math.trunc(frames), 2, FRAME_RING);
+    const atlas = new FrameAtlas(width, height, ringFrames);
+    atlas.fill(source);
+    const schedule = buildFrameSchedule(ringFrames, curveMode);
+    const recovered = scene.recovered;
+    const warmupSteps = Math.max(1, Math.trunc(recovered.warmupSteps || 36));
+    let current = source.slice();
+
+    for (let frame = 0; frame < warmupSteps; frame += 1) {
+      const phase = (((frame * recovered.phaseMultiplier) ^ (frame >>> recovered.phaseShift)) >>> 0);
+      const selected = schedule[phase % schedule.length];
+      const neighbor = schedule[(phase + 1) % schedule.length];
+      const temporal = atlas.blendFrames(selected, neighbor, (phase & 255) / 255);
+      const driftX = ((phase >>> 3) % 7) - 3;
+      const driftY = ((phase >>> 6) % 5) - 2;
+      const animatedSource = translateSource(source, width, height, driftX, driftY, phase & 3);
+      let mixed = blendPixels(animatedSource, temporal, 0.45);
+
+      if ((phase & recovered.feedbackMask) === 0) {
+        mixed = legacyCurveFeedback(
+          frame,
+          mixed,
+          width,
+          height,
+          curveMode,
+          clamp((recovered.gain + 0.88) * 0.5, 0, 1)
+        );
+      }
+
+      atlas.writeCurve((frame + recovered.writeOffset) % ringFrames, mixed, curveMode);
+      current = mixed;
+    }
+
+    return current;
   }
 
   function curveRemap(pixels, width, height, mode) {
@@ -364,7 +425,10 @@
       this.atlas = new FrameAtlas(width, height, this.ringFrames);
       this.frame = 0;
       this.source = new Uint8ClampedArray(width * height * 4);
+      this.sceneSource = this.source.slice();
       this.current = this.source.slice();
+      this._hasSource = false;
+      this.attractorCache = new Map();
       this.sceneId = 0;
       this.curveMode = Curves.CURVE_HILBERT;
       this.params = {};
@@ -378,10 +442,48 @@
     setSource(pixels) {
       assertPixels(pixels, this.width, this.height, 'source');
       this.source = pixels.slice();
-      this.current = pixels.slice();
-      this.atlas.fill(pixels);
+      this._hasSource = true;
+      this.clearAttractorCache();
+      this.rebuildSceneSource();
+      this.current = this.sceneSource.slice();
+      this.atlas.fill(this.sceneSource);
       this.frame = 0;
       return this.current;
+    }
+
+    clearAttractorCache() {
+      this.attractorCache.clear();
+    }
+
+    rebuildSceneSource() {
+      if (!this._hasSource) {
+        this.sceneSource = this.source.slice();
+        return this.sceneSource;
+      }
+
+      const key = this.sceneId + ':' + this.curveMode + ':' + this.ringFrames;
+      const cached = this.attractorCache.get(key);
+      if (cached) {
+        this.sceneSource = cached.slice();
+        return this.sceneSource;
+      }
+
+      const scene = RECOVERED_SCENES[this.sceneId];
+      this.sceneSource = buildLegacySceneAttractor(
+        this.source,
+        this.width,
+        this.height,
+        scene,
+        this.ringFrames,
+        this.curveMode
+      );
+
+      this.attractorCache.set(key, this.sceneSource.slice());
+      while (this.attractorCache.size > 8) {
+        const oldest = this.attractorCache.keys().next().value;
+        this.attractorCache.delete(oldest);
+      }
+      return this.sceneSource;
     }
 
     setRingFrames(frames) {
@@ -389,7 +491,11 @@
       if (next === this.ringFrames) return;
       this.ringFrames = next;
       this.atlas = new FrameAtlas(this.width, this.height, next);
-      this.atlas.fill(this.current);
+      this.clearAttractorCache();
+      if (this._hasSource) this.rebuildSceneSource();
+      this.current = this.sceneSource.slice();
+      this.atlas.fill(this.sceneSource);
+      this.frame = 0;
     }
 
     selectScene(sceneId, resetTimeline = true) {
@@ -402,6 +508,7 @@
         this.params[key] = normalizeParameter(key, scene.params[key] ?? spec.neutral ?? spec.min);
       }
       this.captureAllGroupBaselines();
+      if (this._hasSource) this.rebuildSceneSource();
       if (resetTimeline) this.reset();
       return scene;
     }
@@ -445,7 +552,19 @@
       if (requestedScene !== undefined && Math.trunc(requestedScene) !== this.sceneId) {
         this.selectScene(requestedScene, options.resetScene !== false);
       }
-      if (options.curveMode !== undefined) this.curveMode = clamp(Math.trunc(options.curveMode), 1, 6);
+      if (options.curveMode !== undefined) {
+        const nextCurve = clamp(Math.trunc(options.curveMode), 1, 6);
+        if (nextCurve !== this.curveMode) {
+          this.curveMode = nextCurve;
+          this.clearAttractorCache();
+          if (this._hasSource) {
+            this.rebuildSceneSource();
+            this.current = this.sceneSource.slice();
+            this.atlas.fill(this.sceneSource);
+            this.frame = 0;
+          }
+        }
+      }
       if (options.ringFrames !== undefined) this.setRingFrames(options.ringFrames);
       for (const key of Object.keys(PARAMETER_SPECS)) {
         if (options[key] !== undefined) this.setParameter(key, options[key]);
@@ -454,8 +573,8 @@
 
     reset() {
       this.frame = 0;
-      this.current = this.source.slice();
-      this.atlas.fill(this.source);
+      this.current = this.sceneSource.slice();
+      this.atlas.fill(this.sceneSource);
       return this.current;
     }
 
@@ -467,7 +586,8 @@
       const phase = scene.phase + p.driftPhase;
       const driftX = Math.round(Math.sin(time * p.driftFrequency + phase) * p.driftX);
       const driftY = Math.round(Math.cos(time * p.driftFrequency * 0.83 + phase * 0.71) * p.driftY);
-      const animatedSource = translateSource(this.source, this.width, this.height, driftX, driftY, 0);
+      const identitySource = blendPixels(this.source, this.sceneSource, p.sceneIdentity);
+      const animatedSource = translateSource(identitySource, this.width, this.height, driftX, driftY, 0);
       const colouredSource = transformColour(animatedSource, p);
 
       const writeIndex = ((this.frame * p.writeStride + p.writeOffset) % this.atlas.frames + this.atlas.frames) % this.atlas.frames;
@@ -560,6 +680,8 @@
     LineimationEngine,
     buildFrameSchedule,
     curveFeedback,
+    legacyCurveFeedback,
+    buildLegacySceneAttractor,
     curveRemap,
     blendPixels,
     translateSource,

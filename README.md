@@ -16,7 +16,7 @@ The strongest internally consistent LINEIMATION fragments preserve these constan
 - temporal frame blending and curve feedback;
 - a family of 28 closely related frame passes with different phase, curve, write-offset and feedback parameters.
 
-The reconstruction makes those parts operational again. The 28 damaged functions are represented as explicit, stable **Scenes** rather than being cycled implicitly during playback. Each scene keeps its identity until you select another one.
+The reconstruction makes those parts operational again. The 28 damaged functions are represented as explicit, stable **Scenes** rather than being cycled implicitly during playback. Each scene keeps its identity until you select another one. Scene selection now reconstructs a deterministic visual attractor using the recovered pre-stabilization frame-ring/curve-feedback dynamics off-screen, so the strongly different clustered, banded, folded and recursive compositions are preserved without replaying their hard cuts.
 
 ## Run
 
@@ -30,7 +30,7 @@ The default source is a generated test texture. You can load a local image, sele
 
 The control surface now exposes more than twenty expert parameters across **Motion**, **Temporal**, **Structure**, and **Colour**. Each bank also has a grouped proportional macro. A macro scales the linked expert values around that scene's baseline while preserving their internal ratios; editing an expert value rebases that group so subsequent macro moves remain proportional.
 
-Playback does not auto-select scenes, and missed animation frames are dropped rather than replayed in a catch-up burst. Default scene response is deliberately bounded to avoid full-frame strobe-like changes.
+Playback does not auto-select scenes, and missed animation frames are dropped rather than replayed in a catch-up burst. Default scene response is deliberately bounded to avoid full-frame strobe-like changes. **Recovered scene identity** in the Structure bank mixes between the raw source and the reconstructed attractor; scene defaults keep it high so the original recovered looks remain visible.
 
 Controls: Space play/pause, Right Arrow single-step, R reset timeline.
 

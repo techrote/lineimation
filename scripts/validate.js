@@ -20,7 +20,7 @@ for (const script of ['src/curves.js','src/core.js','src/app.js']) {
 
 for (const signal of [
   'LINEIMATION_FORMAT','FRAME_RING','FrameAtlas','buildFrameSchedule','curveFeedback',
-  'RECOVERED_SCENES','GROUP_SPECS','PARAMETER_SPECS','applyGroupMacro','selectScene'
+  'RECOVERED_SCENES','GROUP_SPECS','PARAMETER_SPECS','applyGroupMacro','selectScene','buildLegacySceneAttractor','legacyCurveFeedback','sceneIdentity'
 ]) {
   if (!core.includes(signal)) throw new Error('core signal missing: ' + signal);
 }

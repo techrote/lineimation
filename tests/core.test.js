@@ -131,3 +131,87 @@ test('expert parameter surface is broad and grouped', () => {
   assert.deepEqual([...represented].sort(), ['colour', 'motion', 'structure', 'temporal']);
   for (const group of represented) assert.ok(Core.GROUP_SPECS[group]);
 });
+
+test('recovered attractors restore distinct visual states before playback', () => {
+  const width = 36;
+  const height = 24;
+  const source = Core.makeTestPattern(width, height);
+  const checksums = new Set();
+
+  for (const scene of Core.RECOVERED_SCENES) {
+    const engine = new Core.LineimationEngine(width, height, { ringFrames: 12, sceneId: scene.id });
+    engine.setSource(source);
+    checksums.add(Core.checksum(engine.current));
+
+    let difference = 0;
+    for (let i = 0; i < source.length; i += 4) {
+      difference += Math.abs(engine.current[i] - source[i]);
+      difference += Math.abs(engine.current[i + 1] - source[i + 1]);
+      difference += Math.abs(engine.current[i + 2] - source[i + 2]);
+    }
+    assert.ok(difference / (width * height * 3) > 8, scene.name + ' collapsed back to the raw source');
+  }
+
+  assert.equal(checksums.size, Core.RECOVERED_SCENES.length);
+});
+
+test('timeline reset returns to the selected recovered attractor', () => {
+  const width = 32;
+  const height = 20;
+  const source = Core.makeTestPattern(width, height);
+  const engine = new Core.LineimationEngine(width, height, { ringFrames: 12, sceneId: 9 });
+  engine.setSource(source);
+  const sceneStart = Core.checksum(engine.current);
+  assert.notEqual(sceneStart, Core.checksum(source));
+
+  for (let i = 0; i < 12; i += 1) engine.step();
+  assert.notEqual(Core.checksum(engine.current), sceneStart);
+
+  engine.reset();
+  assert.equal(Core.checksum(engine.current), sceneStart);
+});
+
+test('recovered scene identity controls the raw/attractor input blend', () => {
+  const width = 32;
+  const height = 20;
+  const source = Core.makeTestPattern(width, height);
+
+  const rawEngine = new Core.LineimationEngine(width, height, { ringFrames: 12, sceneId: 4 });
+  const sceneEngine = new Core.LineimationEngine(width, height, { ringFrames: 12, sceneId: 4 });
+  rawEngine.setSource(source);
+  sceneEngine.setSource(source);
+
+  const neutral = {
+    historyMix: 0,
+    feedbackGain: 0,
+    curveFeedbackMix: 0,
+    curveWriteMix: 0,
+    driftX: 0,
+    driftY: 0,
+    hueShift: 0,
+    saturation: 1,
+    contrast: 1,
+    brightness: 1,
+    gamma: 1,
+    posterize: 0,
+    frameResponse: 0.25
+  };
+  rawEngine.configure(neutral);
+  sceneEngine.configure(neutral);
+  rawEngine.setParameter('sceneIdentity', 0);
+  sceneEngine.setParameter('sceneIdentity', 1);
+
+  for (let i = 0; i < 12; i += 1) {
+    rawEngine.step();
+    sceneEngine.step();
+  }
+
+  let rawToSource = 0;
+  let sceneToSource = 0;
+  for (let i = 0; i < source.length; i += 4) {
+    rawToSource += Math.abs(rawEngine.current[i] - source[i]) + Math.abs(rawEngine.current[i + 1] - source[i + 1]) + Math.abs(rawEngine.current[i + 2] - source[i + 2]);
+    sceneToSource += Math.abs(sceneEngine.current[i] - source[i]) + Math.abs(sceneEngine.current[i + 1] - source[i + 1]) + Math.abs(sceneEngine.current[i + 2] - source[i + 2]);
+  }
+
+  assert.ok(rawToSource < sceneToSource);
+});

@@ -38,6 +38,7 @@
 
     curveWriteMix: Object.freeze({ group: 'structure', label: 'Curve write mix', min: 0, max: 1, step: 0.01, digits: 2, neutral: 0 }),
     curveFeedbackMix: Object.freeze({ group: 'structure', label: 'Curve feedback mix', min: 0, max: 1, step: 0.01, digits: 2, neutral: 0 }),
+    sceneIdentity: Object.freeze({ group: 'structure', label: 'Recovered scene identity', min: 0, max: 1, step: 0.01, digits: 2, neutral: 0 }),
     writeOffset: Object.freeze({ group: 'structure', label: 'Ring write offset', min: 0, max: 95, step: 1, digits: 0, neutral: 0, integer: true }),
     writeStride: Object.freeze({ group: 'structure', label: 'Ring write stride', min: 1, max: 8, step: 1, digits: 0, neutral: 0, integer: true }),
 
@@ -87,6 +88,7 @@
 
       curveWriteMix: rounded(0.16 + (index % 6) * 0.075, 3),
       curveFeedbackMix: rounded(0.12 + (index % 7) * 0.055, 3),
+      sceneIdentity: rounded(0.92 + (index % 4) * 0.01, 2),
       writeOffset: index % 24,
       writeStride: 1 + (index % 3),
 
@@ -107,7 +109,8 @@
         phaseShift: index % 5,
         feedbackMask: mask,
         gain: recoveredGain,
-        writeOffset: index
+        writeOffset: index,
+        warmupSteps: 32 + (index % 4) * 4
       }),
       params: Object.freeze(params)
     });

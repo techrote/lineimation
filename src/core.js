@@ -231,6 +231,64 @@
     return out;
   }
 
+
+  function legacyCurveFeedback(frame, pixels, width, height, mode, gain = 0.9) {
+    assertPixels(pixels, width, height);
+    const u = clamp(Number(gain) || 0, 0, 1);
+    const out = pixels.slice();
+    const map = Curves.buildCurvePermutation(width, height, mode);
+    const count = width * height;
+    const shift = ((frame * 13) % count + count) % count;
+    for (let i = 0; i < count; i += 1) {
+      const sourcePixel = map[(i + shift) % count];
+      const d = i * 4;
+      const s = sourcePixel * 4;
+      out[d] = pixels[d] * (1 - u) + pixels[s] * u;
+      out[d + 1] = pixels[d + 1] * (1 - u) + pixels[s + 1] * u;
+      out[d + 2] = pixels[d + 2] * (1 - u) + pixels[s + 2] * u;
+      out[d + 3] = 255;
+    }
+    return out;
+  }
+
+  function buildLegacySceneAttractor(source, width, height, scene, frames = 24, curveMode = scene.curveMode) {
+    assertPixels(source, width, height, 'source');
+    const ringFrames = clamp(Math.trunc(frames), 2, FRAME_RING);
+    const atlas = new FrameAtlas(width, height, ringFrames);
+    atlas.fill(source);
+    const schedule = buildFrameSchedule(ringFrames, curveMode);
+    const recovered = scene.recovered;
+    const warmupSteps = Math.max(1, Math.trunc(recovered.warmupSteps || 36));
+    let current = source.slice();
+
+    for (let frame = 0; frame < warmupSteps; frame += 1) {
+      const phase = (((frame * recovered.phaseMultiplier) ^ (frame >>> recovered.phaseShift)) >>> 0);
+      const selected = schedule[phase % schedule.length];
+      const neighbor = schedule[(phase + 1) % schedule.length];
+      const temporal = atlas.blendFrames(selected, neighbor, (phase & 255) / 255);
+      const driftX = ((phase >>> 3) % 7) - 3;
+      const driftY = ((phase >>> 6) % 5) - 2;
+      const animatedSource = translateSource(source, width, height, driftX, driftY, phase & 3);
+      let mixed = blendPixels(animatedSource, temporal, 0.45);
+
+      if ((phase & recovered.feedbackMask) === 0) {
+        mixed = legacyCurveFeedback(
+          frame,
+          mixed,
+          width,
+          height,
+          curveMode,
+          clamp((recovered.gain + 0.88) * 0.5, 0, 1)
+        );
+      }
+
+      atlas.writeCurve((frame + recovered.writeOffset) % ringFrames, mixed, curveMode);
+      current = mixed;
+    }
+
+    return current;
+  }
+
   function curveRemap(pixels, width, height, mode) {
     assertPixels(pixels, width, height);
     const map = Curves.buildCurvePermutation(width, height, mode);

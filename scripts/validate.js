@@ -9,7 +9,7 @@ const curves = fs.readFileSync('src/curves.js', 'utf8');
 
 const ids = [
   'canvas','preset','fractalMode','cameraMode','recoveredScene','textureFile',
-  'groupMacros','expertControls','pauseButton','recenterButton','resetButton','shotButton'
+  'groupMacros','expertControls','pauseButton','cameraLockButton','saveButton','recenterButton','resetButton','shotButton'
 ];
 for (const id of ids) {
   if (!html.includes('id="' + id + '"')) throw new Error('index.html missing #' + id);
@@ -27,14 +27,15 @@ for (const signal of [
 
 for (const signal of [
   'GROUP_SPECS','PARAMETER_SPECS','FRACTAL_MODES','CAMERA_MODES','PRESETS',
-  'ExplorerState','cameraSample','silhouetteLock','internalRotation','writheAmount','zoomRate'
+  'ExplorerState','cameraSample','silhouetteLock','internalRotation','writheAmount','zoomRate','groupFactors','restore(snapshot)'
 ]) {
   if (!explorer.includes(signal)) throw new Error('explorer signal missing: ' + signal);
 }
 
 for (const signal of [
   'WebGL2','uSilhouetteLock','dynamicDomain','recursiveBloom','escapeField',
-  'uLogZoom','buildRecoveredTexture','buildControls','requestAnimationFrame'
+  'uLogZoom','buildRecoveredTexture','buildControls','requestAnimationFrame',
+  'localStorage','STORAGE_KEY','cameraLocked','LOCK CAMERA','numeric-input','saveState','restoreSavedState'
 ]) {
   if (!app.includes(signal)) throw new Error('renderer signal missing: ' + signal);
 }

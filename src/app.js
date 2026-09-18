@@ -354,7 +354,9 @@ void main() {
   const parameterBindings = new Map();
   const macroBindings = new Map();
   const manual = { x: 0, y: 0, zoom: 0 };
+  const STORAGE_KEY = 'lineimation.explorer.state.v1';
   let paused = false;
+  let cameraLocked = false;
   let hiddenUi = false;
   let simTime = 0;
   let lastNow = performance.now();
@@ -374,6 +376,8 @@ void main() {
     macros: document.getElementById('groupMacros'),
     experts: document.getElementById('expertControls'),
     pause: document.getElementById('pauseButton'),
+    cameraLock: document.getElementById('cameraLockButton'),
+    save: document.getElementById('saveButton'),
     recenter: document.getElementById('recenterButton'),
     reset: document.getElementById('resetButton'),
     shot: document.getElementById('shotButton'),
@@ -465,11 +469,20 @@ void main() {
     return spec.integer ? String(Math.round(value)) : Number(value).toFixed(spec.digits);
   }
 
+  function setNumberAttributes(input, spec) {
+    input.type = 'number';
+    input.className = 'numeric-input';
+    input.min = String(spec.min);
+    input.max = String(spec.max);
+    input.step = String(spec.step);
+  }
+
   function syncParameterGroup(group) {
     for (const [key, binding] of parameterBindings) {
       if (binding.group !== group) continue;
-      binding.input.value = String(state.params[key]);
-      binding.output.textContent = formatParameter(key, state.params[key]);
+      const value = state.params[key];
+      binding.range.value = String(value);
+      binding.number.value = formatParameter(key, value);
     }
   }
 
@@ -477,11 +490,47 @@ void main() {
     for (const group of Object.keys(Explorer.GROUP_SPECS)) syncParameterGroup(group);
   }
 
-  function resetMacros() {
-    for (const binding of macroBindings.values()) {
-      binding.input.value = '1';
-      binding.output.textContent = '1.00×';
+  function syncMacros() {
+    for (const [group, binding] of macroBindings) {
+      const factor = Number(state.groupFactors[group] ?? 1);
+      binding.range.value = String(factor);
+      binding.number.value = factor.toFixed(2);
     }
+  }
+
+  function commitMacro(group, rawValue) {
+    const spec = Explorer.GROUP_SPECS[group];
+    const parsed = Number(rawValue);
+    const value = Number.isFinite(parsed) ? parsed : Number(state.groupFactors[group] ?? 1);
+    state.applyGroupMacro(group, value);
+    syncMacros();
+    syncParameterGroup(group);
+  }
+
+  function commitParameter(key, rawValue) {
+    const parsed = Number(rawValue);
+    if (!Number.isFinite(parsed)) {
+      syncParameterGroup(Explorer.PARAMETER_SPECS[key].group);
+      return;
+    }
+    const group = Explorer.PARAMETER_SPECS[key].group;
+    state.setParameter(key, parsed, true);
+    syncParameterGroup(group);
+    syncMacros();
+  }
+
+  function enterCommits(input, commit) {
+    input.addEventListener('change', commit);
+    input.addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        commit();
+        input.blur();
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        input.blur();
+      }
+    });
   }
 
   function buildControls() {
@@ -490,29 +539,26 @@ void main() {
       macroRow.className = 'macro-row';
       const macroName = document.createElement('span');
       macroName.textContent = groupSpec.label;
-      const macro = document.createElement('input');
-      macro.type = 'range';
-      macro.min = groupSpec.min;
-      macro.max = groupSpec.max;
-      macro.step = groupSpec.step;
-      macro.value = '1';
-      const macroOut = document.createElement('output');
-      macroOut.textContent = '1.00×';
-      macro.addEventListener('input', () => {
-        const factor = Number(macro.value);
-        state.applyGroupMacro(group, factor);
-        macroOut.textContent = factor.toFixed(2) + '×';
-        syncParameterGroup(group);
-      });
-      macro.addEventListener('dblclick', () => {
-        macro.value = '1';
-        state.applyGroupMacro(group, 1);
-        macroOut.textContent = '1.00×';
-        syncParameterGroup(group);
-      });
-      macroRow.append(macroName, macro, macroOut);
+
+      const macroRange = document.createElement('input');
+      macroRange.type = 'range';
+      macroRange.min = String(groupSpec.min);
+      macroRange.max = String(groupSpec.max);
+      macroRange.step = String(groupSpec.step);
+      macroRange.value = '1';
+
+      const macroNumber = document.createElement('input');
+      setNumberAttributes(macroNumber, groupSpec);
+      macroNumber.value = '1.00';
+
+      macroRange.addEventListener('input', () => commitMacro(group, macroRange.value));
+      enterCommits(macroNumber, () => commitMacro(group, macroNumber.value));
+      macroRange.addEventListener('dblclick', () => commitMacro(group, 1));
+      macroNumber.addEventListener('dblclick', () => commitMacro(group, 1));
+
+      macroRow.append(macroName, macroRange, macroNumber);
       els.macros.appendChild(macroRow);
-      macroBindings.set(group, { input: macro, output: macroOut });
+      macroBindings.set(group, { range: macroRange, number: macroNumber });
 
       const details = document.createElement('details');
       details.className = 'parameter-group';
@@ -529,43 +575,140 @@ void main() {
         row.className = 'parameter-row';
         const name = document.createElement('span');
         name.textContent = spec.label;
-        const input = document.createElement('input');
-        input.type = 'range';
-        input.min = spec.min;
-        input.max = spec.max;
-        input.step = spec.step;
-        const output = document.createElement('output');
-        input.addEventListener('input', () => {
-          state.setParameter(key, Number(input.value), true);
-          output.textContent = formatParameter(key, state.params[key]);
-          const macroBinding = macroBindings.get(group);
-          macroBinding.input.value = '1';
-          macroBinding.output.textContent = '1.00×';
-        });
-        row.append(name, input, output);
+
+        const range = document.createElement('input');
+        range.type = 'range';
+        range.min = String(spec.min);
+        range.max = String(spec.max);
+        range.step = String(spec.step);
+
+        const number = document.createElement('input');
+        setNumberAttributes(number, spec);
+
+        range.addEventListener('input', () => commitParameter(key, range.value));
+        enterCommits(number, () => commitParameter(key, number.value));
+
+        row.append(name, range, number);
         body.appendChild(row);
-        parameterBindings.set(key, { input, output, group });
+        parameterBindings.set(key, { range, number, group });
       }
       details.appendChild(body);
       els.experts.appendChild(details);
     }
   }
 
-  function applyPreset(index) {
-    const preset = state.applyPreset(Number(index));
+  function syncSelectors() {
     els.preset.value = String(state.presetIndex);
     els.fractal.value = String(state.fractalMode);
     els.camera.value = String(state.cameraMode);
     els.recovered.value = String(state.recoveredScene);
+  }
+
+  function updatePauseButton() {
+    els.pause.textContent = paused ? 'RESUME' : 'PAUSE';
+  }
+
+  function updateCameraLockButton() {
+    els.cameraLock.textContent = cameraLocked ? 'UNLOCK CAMERA' : 'LOCK CAMERA';
+    els.cameraLock.classList.toggle('active', cameraLocked);
+    els.cameraLock.setAttribute('aria-pressed', String(cameraLocked));
+  }
+
+  function applyPreset(index) {
+    const preset = state.applyPreset(Number(index));
     manual.x = 0;
     manual.y = 0;
     manual.zoom = 0;
     simTime = 0;
-    resetMacros();
+    cameraLocked = false;
+    syncSelectors();
+    syncMacros();
     syncAllParameters();
     buildRecoveredTexture(state.recoveredScene);
     smoothCamera = Explorer.cameraSample(state, 0, manual);
+    updateCameraLockButton();
     els.status.textContent = preset.name;
+  }
+
+  function saveState() {
+    const payload = {
+      version: 1,
+      savedAt: new Date().toISOString(),
+      explorer: state.snapshot(),
+      manual: { ...manual },
+      simTime,
+      cameraLocked,
+      camera: { ...smoothCamera },
+      paused,
+      texture: {
+        kind: customTexture ? 'custom' : 'recovered',
+        recoveredScene: state.recoveredScene
+      }
+    };
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+      els.status.textContent = customTexture
+        ? 'saved · custom image is not embedded; recovered texture will restore after reload'
+        : 'saved explorer state';
+    } catch (error) {
+      els.status.textContent = 'save failed · ' + error.message;
+    }
+  }
+
+  function finiteOr(value, fallback) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : fallback;
+  }
+
+  function restoreSavedState() {
+    let raw;
+    try {
+      raw = localStorage.getItem(STORAGE_KEY);
+    } catch {
+      return false;
+    }
+    if (!raw) return false;
+
+    try {
+      const payload = JSON.parse(raw);
+      if (!payload || payload.version !== 1 || !payload.explorer) return false;
+      state.restore(payload.explorer);
+      manual.x = finiteOr(payload.manual && payload.manual.x, 0);
+      manual.y = finiteOr(payload.manual && payload.manual.y, 0);
+      manual.zoom = finiteOr(payload.manual && payload.manual.zoom, 0);
+      simTime = finiteOr(payload.simTime, 0);
+      paused = Boolean(payload.paused);
+      cameraLocked = Boolean(payload.cameraLocked);
+
+      const fallbackCamera = Explorer.cameraSample(state, simTime, manual);
+      smoothCamera = {
+        x: finiteOr(payload.camera && payload.camera.x, fallbackCamera.x),
+        y: finiteOr(payload.camera && payload.camera.y, fallbackCamera.y),
+        logZoom: finiteOr(payload.camera && payload.camera.logZoom, fallbackCamera.logZoom)
+      };
+
+      syncSelectors();
+      syncMacros();
+      syncAllParameters();
+      buildRecoveredTexture(state.recoveredScene);
+      updatePauseButton();
+      updateCameraLockButton();
+      els.status.textContent = payload.texture && payload.texture.kind === 'custom'
+        ? 'restored saved state · custom image was not embedded'
+        : 'restored saved state';
+      return true;
+    } catch (error) {
+      els.status.textContent = 'saved state invalid · ' + error.message;
+      return false;
+    }
+  }
+
+  function toggleCameraLock(force) {
+    cameraLocked = force === undefined ? !cameraLocked : Boolean(force);
+    updateCameraLockButton();
+    els.status.textContent = cameraLocked
+      ? 'camera locked · fractal evolution continues'
+      : 'camera unlocked · automatic path resumed';
   }
 
   function setUniform1f(name, value) {
@@ -627,13 +770,15 @@ void main() {
     lastNow = now;
     if (!paused) simTime += dt;
 
-    const desired = Explorer.cameraSample(state, simTime, manual);
-    const response = 1 - Math.exp(-dt * Math.max(0.2, state.params.cameraLag));
-    smoothCamera = {
-      x: lerp(smoothCamera.x, desired.x, response),
-      y: lerp(smoothCamera.y, desired.y, response),
-      logZoom: lerp(smoothCamera.logZoom, desired.logZoom, response)
-    };
+    if (!cameraLocked) {
+      const desired = Explorer.cameraSample(state, simTime, manual);
+      const response = 1 - Math.exp(-dt * Math.max(0.2, state.params.cameraLag));
+      smoothCamera = {
+        x: lerp(smoothCamera.x, desired.x, response),
+        y: lerp(smoothCamera.y, desired.y, response),
+        logZoom: lerp(smoothCamera.logZoom, desired.logZoom, response)
+      };
+    }
 
     gl.useProgram(program);
     gl.activeTexture(gl.TEXTURE0);
@@ -648,7 +793,7 @@ void main() {
       fpsStart = now;
       els.fps.textContent = fps.toFixed(1) + ' fps';
     }
-    els.zoom.textContent = 'zoom 2^' + smoothCamera.logZoom.toFixed(2);
+    els.zoom.textContent = 'zoom 2^' + smoothCamera.logZoom.toFixed(2) + (cameraLocked ? ' · LOCKED' : '');
     els.mode.textContent = Explorer.FRACTAL_MODES[state.fractalMode] + ' · ' + Explorer.CAMERA_MODES[state.cameraMode];
     requestAnimationFrame(frame);
   }
@@ -673,8 +818,10 @@ void main() {
 
   els.pause.addEventListener('click', () => {
     paused = !paused;
-    els.pause.textContent = paused ? 'RESUME' : 'PAUSE';
+    updatePauseButton();
   });
+  els.cameraLock.addEventListener('click', () => toggleCameraLock());
+  els.save.addEventListener('click', saveState);
   els.recenter.addEventListener('click', () => {
     manual.x = manual.y = manual.zoom = 0;
     smoothCamera = Explorer.cameraSample(state, simTime, manual);
@@ -700,8 +847,14 @@ void main() {
     dragX = event.clientX;
     dragY = event.clientY;
     const scale = Math.pow(2, -Math.min(20, Math.max(-20, smoothCamera.logZoom)));
-    manual.x -= dx / Math.max(1, canvas.clientHeight) * scale * 2.2;
-    manual.y += dy / Math.max(1, canvas.clientHeight) * scale * 2.2;
+    const worldX = dx / Math.max(1, canvas.clientHeight) * scale * 2.2;
+    const worldY = dy / Math.max(1, canvas.clientHeight) * scale * 2.2;
+    manual.x -= worldX;
+    manual.y += worldY;
+    if (cameraLocked) {
+      smoothCamera.x -= worldX;
+      smoothCamera.y += worldY;
+    }
   });
   canvas.addEventListener('pointerup', event => {
     dragging = false;
@@ -710,16 +863,26 @@ void main() {
   canvas.addEventListener('pointercancel', () => dragging = false);
   canvas.addEventListener('wheel', event => {
     event.preventDefault();
-    manual.zoom -= event.deltaY * 0.0025;
+    const delta = -event.deltaY * 0.0025;
+    manual.zoom += delta;
+    if (cameraLocked) smoothCamera.logZoom += delta;
   }, { passive: false });
 
   window.addEventListener('keydown', event => {
     const tag = event.target && event.target.tagName;
-    if (tag === 'INPUT' || tag === 'SELECT') return;
+    const editing = tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA';
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+      event.preventDefault();
+      saveState();
+      return;
+    }
+    if (editing) return;
     if (event.code === 'Space') {
       event.preventDefault();
       paused = !paused;
-      els.pause.textContent = paused ? 'RESUME' : 'PAUSE';
+      updatePauseButton();
+    } else if (event.key.toLowerCase() === 'l') {
+      toggleCameraLock();
     } else if (event.key.toLowerCase() === 'r') {
       applyPreset(state.presetIndex);
     } else if (event.key.toLowerCase() === 'h') {
@@ -738,8 +901,9 @@ void main() {
     fatal.classList.remove('hidden');
   });
 
-  applyPreset(0);
+  if (!restoreSavedState()) applyPreset(0);
   resize(true);
   gl.useProgram(program);
+  lastNow = performance.now();
   requestAnimationFrame(frame);
 })();

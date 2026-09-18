@@ -162,6 +162,7 @@
     constructor(presetIndex = 0) {
       this.params = {};
       this.groupBaselines = {};
+      this.groupFactors = {};
       this.presetIndex = 0;
       this.fractalMode = 0;
       this.cameraMode = 0;
@@ -181,6 +182,7 @@
         this.params[key] = normalizeParameter(key, preset.params[key] ?? spec.neutral);
       }
       this.captureAllBaselines();
+      for (const group of Object.keys(GROUP_SPECS)) this.groupFactors[group] = 1;
       return preset;
     }
 
@@ -200,7 +202,11 @@
 
     setParameter(key, value, rebase = false) {
       this.params[key] = normalizeParameter(key, value);
-      if (rebase) this.captureGroupBaseline(PARAMETER_SPECS[key].group);
+      if (rebase) {
+        const group = PARAMETER_SPECS[key].group;
+        this.captureGroupBaseline(group);
+        this.groupFactors[group] = 1;
+      }
       return this.params[key];
     }
 
@@ -209,6 +215,7 @@
       if (!groupSpec) throw new RangeError('Unknown explorer group: ' + group);
       const amount = clamp(Number(factor), groupSpec.min, groupSpec.max);
       const baseline = this.groupBaselines[group] || this.captureGroupBaseline(group);
+      this.groupFactors[group] = amount;
       for (const [key, base] of Object.entries(baseline)) {
         const spec = PARAMETER_SPECS[key];
         const neutral = Number(spec.neutral ?? 0);
@@ -217,13 +224,58 @@
       return this.params;
     }
 
+    restore(snapshot) {
+      if (!snapshot || typeof snapshot !== 'object') throw new TypeError('Explorer snapshot must be an object.');
+      this.applyPreset(snapshot.presetIndex ?? 0);
+      this.fractalMode = clamp(Math.trunc(Number(snapshot.fractalMode ?? this.fractalMode)), 0, FRACTAL_MODES.length - 1);
+      this.cameraMode = clamp(Math.trunc(Number(snapshot.cameraMode ?? this.cameraMode)), 0, CAMERA_MODES.length - 1);
+      this.recoveredScene = Math.max(0, Math.trunc(Number(snapshot.recoveredScene ?? this.recoveredScene)));
+
+      if (snapshot.params && typeof snapshot.params === 'object') {
+        for (const key of Object.keys(PARAMETER_SPECS)) {
+          if (Object.prototype.hasOwnProperty.call(snapshot.params, key)) {
+            this.params[key] = normalizeParameter(key, snapshot.params[key]);
+          }
+        }
+      }
+
+      if (snapshot.groupBaselines && typeof snapshot.groupBaselines === 'object') {
+        for (const group of Object.keys(GROUP_SPECS)) {
+          const incoming = snapshot.groupBaselines[group];
+          if (!incoming || typeof incoming !== 'object') continue;
+          const baseline = {};
+          for (const [key, spec] of Object.entries(PARAMETER_SPECS)) {
+            if (spec.group !== group || !Object.prototype.hasOwnProperty.call(incoming, key)) continue;
+            baseline[key] = normalizeParameter(key, incoming[key]);
+          }
+          if (Object.keys(baseline).length) this.groupBaselines[group] = baseline;
+        }
+      }
+
+      for (const group of Object.keys(GROUP_SPECS)) {
+        if (!this.groupBaselines[group]) this.captureGroupBaseline(group);
+        const spec = GROUP_SPECS[group];
+        const factor = snapshot.groupFactors && Object.prototype.hasOwnProperty.call(snapshot.groupFactors, group)
+          ? Number(snapshot.groupFactors[group])
+          : 1;
+        this.groupFactors[group] = clamp(Number.isFinite(factor) ? factor : 1, spec.min, spec.max);
+      }
+      return this.snapshot();
+    }
+
     snapshot() {
+      const groupBaselines = {};
+      for (const [group, baseline] of Object.entries(this.groupBaselines)) {
+        groupBaselines[group] = Object.freeze({ ...baseline });
+      }
       return Object.freeze({
         presetIndex: this.presetIndex,
         fractalMode: this.fractalMode,
         cameraMode: this.cameraMode,
         recoveredScene: this.recoveredScene,
-        params: Object.freeze({ ...this.params })
+        params: Object.freeze({ ...this.params }),
+        groupBaselines: Object.freeze(groupBaselines),
+        groupFactors: Object.freeze({ ...this.groupFactors })
       });
     }
   }

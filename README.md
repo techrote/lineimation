@@ -1,42 +1,98 @@
 # LINEIMATION
 
-A behavioral reconstruction of the corrupted `recovered` artifact: a 2D texture-animation instrument whose surviving native signals point to curve-addressed frame storage and temporal feedback.
+LINEIMATION is a dependency-free **WebGL2 pseudo-fractal explorer** reconstructed from a badly corrupted recovered artifact.
 
-The original `recovered` file is intentionally left untouched as forensic evidence. It is a 777 kB splice containing fragments from several other projects plus the damaged LINEIMATION code. Repairing it line-by-line would preserve the corruption rather than the application, so the runnable reconstruction lives alongside it.
+The user clarified the intended behavior after the first recovery passes: this is not primarily a texture-feedback instrument. The core experience is continuous flight through evolving fractal-like structures — logarithmic zoom in or out, orbit/fly-through camera paths, recurrence evolution, domain writhe, apparent rotation, and shader embellishment.
 
-## Recovered behavior
+The original `recovered` file remains untouched as forensic evidence.
 
-The strongest internally consistent LINEIMATION fragments preserve these constants and concepts:
+## What LINEIMATION does now
 
-- format marker `0x0217`;
-- a maximum 96-frame ring;
-- Hilbert, Heighway dragon, Sierpiński arrowhead, Morton/Z-order, Moore and Gosper curve modes;
-- curve-addressed texture writes;
-- curve-derived frame scheduling;
-- temporal frame blending and curve feedback;
-- a family of 28 closely related frame passes with different phase, curve, write-offset and feedback parameters.
+- Live WebGL2 fractal/pseudo-fractal rendering with no runtime dependencies.
+- Six geometry families:
+  - Recursive bloom field
+  - Julia flow
+  - Mandelbrot orbit
+  - Tricorn
+  - Burning ship
+  - Folded lattice IFS
+- Seven camera behaviors:
+  - Infinite in
+  - Infinite out
+  - Orbit dive
+  - Flythrough
+  - Lissajous
+  - Breathing observer
+  - Manual
+- Continuous logarithmic zoom, plus drag steering and wheel zoom.
+- **Silhouette lock**: the boundary can be evaluated from a static field while the interior uses a separately evolved field. This lets internal fractal elements writhe, rotate, fold and change while the outer silhouette remains fixed.
+- Independent recurrence evolution, internal rotation, writhe amplitude/scale/speed, slice drift, parameter orbit and breathing.
+- More than forty expert parameters across five grouped banks:
+  - Camera
+  - Fractal evolution
+  - Geometry
+  - Shader detail
+  - Colour
+- ZaagGenZ-style proportional group macros: a macro scales a bank around its current baseline while preserving internal parameter relationships.
+- Contours, orbit-trap glow, grain, chromatic separation, horizontal banding and animated palette controls.
+- The recovered 28 scene/frame-ring system is retained as an **optional shader texture source**, not the geometry/camera engine.
+- Local image loading can replace the recovered detail texture.
 
-The reconstruction makes those parts operational again. The 28 damaged functions are represented as explicit, stable **Scenes** rather than being cycled implicitly during playback. Each scene keeps its identity until you select another one. Scene selection now reconstructs a deterministic visual attractor using the recovered pre-stabilization frame-ring/curve-feedback dynamics off-screen, so the strongly different clustered, banded, folded and recursive compositions are preserved without replaying their hard cuts.
+## Presets
+
+The supplied presets are deliberately different explorations rather than rapidly changing timeline states:
+
+- Fixed silhouette writher
+- Infinite descent
+- Reverse ascent
+- Julia gyroscope
+- Banded bloom horizon
+- Folded tunnel
+- Mandelbrot pilot
+- Burning-ship current
+
+A preset remains selected until you choose another one.
 
 ## Run
 
-Open `index.html` directly in a current browser. No install, build step, server or network access is required.
+Open `index.html` directly in a current browser with WebGL2 and hardware acceleration.
 
 Windows: double-click `0Play.cmd`.
 
 Linux/macOS: run `./0Play.sh` or open `index.html`.
 
-The default source is a generated test texture. You can load a local image, select one of 28 recovered scenes, choose a curve, tune the frame ring, step the timeline, or export the current frame as PNG.
+No server, npm install, CDN or network connection is required at runtime.
 
-The control surface now exposes more than twenty expert parameters across **Motion**, **Temporal**, **Structure**, and **Colour**. Each bank also has a grouped proportional macro. A macro scales the linked expert values around that scene's baseline while preserving their internal ratios; editing an expert value rebases that group so subsequent macro moves remain proportional.
+### Interaction
 
-Playback does not auto-select scenes, and missed animation frames are dropped rather than replayed in a catch-up burst. Default scene response is deliberately bounded to avoid full-frame strobe-like changes. **Recovered scene identity** in the Structure bank mixes between the raw source and the reconstructed attractor; scene defaults keep it high so the original recovered looks remain visible.
+- Drag the canvas: steer the focal point.
+- Mouse wheel: add manual logarithmic zoom.
+- Space: pause/resume.
+- R: reset the current preset.
+- H: hide/show the interface.
+- F: fullscreen.
+- PNG: capture the current view.
 
-Controls: Space play/pause, Right Arrow single-step, R reset timeline.
+## Architecture
+
+The renderer deliberately separates three concepts:
+
+1. **Camera field** — where and at what logarithmic depth the explorer is looking.
+2. **Fractal field** — the actual recurrence/fold structure and its evolving parameters.
+3. **Embellishment field** — recovered frame-ring art or a loaded image used as shader material.
+
+For silhouette-locked motion the shader evaluates the fractal twice:
+
+- a static field supplies the outer mask;
+- a time-evolved field supplies internal orbit metrics, contours, colour and texture coordinates.
+
+The two are mixed by **Silhouette lock**. At 1.0 the overall outline can remain effectively stationary while the internal structure continues to move.
+
+The recursive bloom and folded-IFS modes are designed for long-running self-similar zoom. Exact deep-precision Mandelbrot navigation is not the goal; LINEIMATION is intentionally a **pseudo-fractal flight instrument** rather than a scientific arbitrary-precision explorer.
 
 ## Development validation
 
-Node.js 18+ is only needed for tests:
+Node.js 18+ is only required for repository tests:
 
 ```text
 npm test
@@ -44,6 +100,8 @@ npm test
 
 There are no npm dependencies.
 
+Tests cover the recovered curve/frame-ring subsystem as well as the explorer parameter model, grouped macros, fixed-silhouette presets, deterministic camera paths and unbounded logarithmic camera state.
+
 ## Recovery boundary
 
-This is a behavioral reconstruction, not a claim of byte-for-byte restoration. See `docs/RECOVERY.md` for the evidence used to distinguish LINEIMATION from interleaved donor material and for the small number of parameters that had to be inferred from surviving patterns.
+`docs/RECOVERY.md` records the forensic evidence and the distinction between recovered material and reconstruction decisions. The original `recovered` artifact is preserved unchanged.

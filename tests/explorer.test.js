@@ -66,3 +66,55 @@ test('camera paths are deterministic', () => {
   const b = Explorer.cameraSample(state, 123.456, {x:0.2,y:-0.1,zoom:1.5});
   assert.deepEqual(a, b);
 });
+
+test('explorer snapshots round-trip parameters, macros, and baselines', () => {
+  const original = new Explorer.ExplorerState(3);
+  original.setParameter('zoomRate', 0.41, true);
+  original.setParameter('writheAmount', 1.17, true);
+  original.applyGroupMacro('camera', 1.35);
+  original.applyGroupMacro('evolution', 0.72);
+  original.fractalMode = 5;
+  original.cameraMode = 4;
+  original.recoveredScene = 19;
+
+  const snapshot = JSON.parse(JSON.stringify(original.snapshot()));
+  const restored = new Explorer.ExplorerState(0);
+  restored.restore(snapshot);
+
+  assert.equal(restored.fractalMode, 5);
+  assert.equal(restored.cameraMode, 4);
+  assert.equal(restored.recoveredScene, 19);
+  assert.equal(restored.params.zoomRate, original.params.zoomRate);
+  assert.equal(restored.params.writheAmount, original.params.writheAmount);
+  assert.equal(restored.groupFactors.camera, original.groupFactors.camera);
+  assert.equal(restored.groupFactors.evolution, original.groupFactors.evolution);
+  assert.deepEqual(restored.groupBaselines.camera, original.groupBaselines.camera);
+  assert.deepEqual(restored.groupBaselines.evolution, original.groupBaselines.evolution);
+});
+
+test('restored snapshots clamp invalid numeric values to declared contracts', () => {
+  const restored = new Explorer.ExplorerState(0);
+  restored.restore({
+    presetIndex: 0,
+    fractalMode: 999,
+    cameraMode: -100,
+    recoveredScene: 12,
+    params: {
+      zoomRate: 999,
+      iterations: -5,
+      silhouetteLock: 4
+    },
+    groupFactors: {
+      camera: 99,
+      evolution: -20
+    }
+  });
+
+  assert.equal(restored.fractalMode, Explorer.FRACTAL_MODES.length - 1);
+  assert.equal(restored.cameraMode, 0);
+  assert.equal(restored.params.zoomRate, Explorer.PARAMETER_SPECS.zoomRate.max);
+  assert.equal(restored.params.iterations, Explorer.PARAMETER_SPECS.iterations.min);
+  assert.equal(restored.params.silhouetteLock, Explorer.PARAMETER_SPECS.silhouetteLock.max);
+  assert.equal(restored.groupFactors.camera, Explorer.GROUP_SPECS.camera.max);
+  assert.equal(restored.groupFactors.evolution, Explorer.GROUP_SPECS.evolution.min);
+});

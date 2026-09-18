@@ -25,6 +25,9 @@ The original `recovered` file remains untouched as forensic evidence.
   - Breathing observer
   - Manual
 - Continuous logarithmic zoom, plus drag steering and wheel zoom.
+- **Camera lock** freezes the current camera transform while fractal evolution continues; drag/wheel still make manual locked-camera adjustments.
+- **SAVE** persists the full explorer state to browser storage and restores it on the next launch: fractal/camera modes, every expert parameter, proportional-macro baselines/factors, simulation time and manual camera position/zoom.
+- Every slider has a synchronized keyboard-editable numeric field with the same min/max/step contract.
 - **Silhouette lock**: the boundary can be evaluated from a static field while the interior uses a separately evolved field. This lets internal fractal elements writhe, rotate, fold and change while the outer silhouette remains fixed.
 - Independent recurrence evolution, internal rotation, writhe amplitude/scale/speed, slice drift, parameter orbit and breathing.
 - More than forty expert parameters across five grouped banks:
@@ -67,11 +70,16 @@ No server, npm install, CDN or network connection is required at runtime.
 
 - Drag the canvas: steer the focal point.
 - Mouse wheel: add manual logarithmic zoom.
+- **LOCK CAMERA** (or L): freeze/unfreeze automatic camera motion without pausing fractal evolution.
+- **SAVE** (or Ctrl/Cmd+S): store the complete explorer state locally; it auto-restores next launch.
+- Type directly into the numeric field beside any slider and press Enter (or leave the field) to commit an exact value.
 - Space: pause/resume.
 - R: reset the current preset.
 - H: hide/show the interface.
 - F: fullscreen.
 - PNG: capture the current view.
+
+Custom detail images are deliberately not embedded into the browser save because arbitrary image files can exceed local-storage limits; if a custom image was active, the saved recovered-texture selection is restored instead and the status bar says so.
 
 ## Architecture
 

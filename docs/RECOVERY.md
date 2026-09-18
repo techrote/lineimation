@@ -6,7 +6,19 @@
 
 The original artifact remains unchanged.
 
-## Strong LINEIMATION evidence
+## Authoritative behavioral clarification
+
+After the first reconstruction passes, the user clarified the remembered purpose of LINEIMATION:
+
+- it is an evolving **pseudo-fractal explorer**;
+- the camera should continuously zoom inward or outward and support flight/orbit behavior;
+- fractal elements should writhe, fold and appear to rotate;
+- one important mode should let the internal structure move while the overall silhouette remains fixed;
+- shader embellishment should decorate the fractal rather than replace the fractal/camera model.
+
+This remembered behavior is authoritative for reconstruction intent. It changes the interpretation of the corrupted evidence: the curve/frame-ring subsystem is real and intentional, but it is not sufficient by itself to describe the whole application.
+
+## Strong recovered texture/timeline evidence
 
 The following signals recur independently and form a coherent subsystem:
 
@@ -25,20 +37,27 @@ The following signals recur independently and form a coherent subsystem:
 - repeated `timeline-recovery ... HILBERT_DRAGON_SIERPINSKI_FRAME_CURVE` markers
 - a recovered WGSL texture pass using a 2D-array source, frame count, curve mode, order, feedback and phase
 
-Those pieces agree on a 2D texture/timeline architecture and are the basis of the reconstruction.
+Those pieces are retained as the recovered embellishment subsystem.
 
-## Donor material excluded from the runtime
+## Fractal / camera evidence
 
-Several large families are recognizable as code from other repositories and do not form part of the LINEIMATION subsystem:
+The corrupted file also contains substantial WebGL/WGSL fractal and camera material: recursive flow fields, Julia/Mandelbrot-family code, continuous growth/twist/slice controls, camera chase/orbit/fly-through logic, texture motion and shader material controls.
 
-- WebGL2 live-fractal renderer UI, quaternion Julia / Mandelbulb / Mandelbox code and ray-march controls: matches the reconstructed `techrote/recoveredfractalgen` project.
-- WebGPU ocean, projection, environment and compositor WGSL: matches the XenoField code family.
-- deterministic glitch-genome operators (`tear`, `blocks`, `channels`, `bits`, `quantize`, `noise`, `feedback`, `refresh`) and its browser UI: matches `techrote/recoveredprototype`.
-- unrelated C++ image fault operators, motion graph/evaluator code, agent simulation code and large prose/HTML passages.
+Some of that material overlaps strongly with the separately reconstructed `techrote/recoveredfractalgen` project, so source provenance cannot be proven line-by-line. However the user's remembered LINEIMATION behavior independently confirms that **fractal evolution and camera traversal belong in this application's behavioral reconstruction**.
 
-These remain available in the preserved artifact but are not executed by the recovered LINEIMATION application.
+The current implementation therefore uses a clean WebGL2 pseudo-fractal renderer rather than copying an unknowable damaged original shader verbatim.
 
-## Inferred parameters
+## Material that remains excluded
+
+The following families still have no behavioral justification for LINEIMATION and remain evidence-only:
+
+- WebGPU ocean/environment/compositor infrastructure associated with XenoField;
+- deterministic glitch-genome operators from `techrote/recoveredprototype`;
+- unrelated C++ image fault operators;
+- unrelated motion-graph/agent-simulation implementations;
+- prose and rendered HTML debris.
+
+## Recovered frame-pass inference
 
 The pass fragments reveal a regular construction even when individual functions are cut apart:
 
@@ -49,14 +68,19 @@ The pass fragments reveal a regular construction even when individual functions 
 - feedback masks recur as a short set (`2, 3, 5, 9`);
 - gains cluster in the low/mid 0.8s through low 0.9s.
 
-The first four relationships are sufficiently consistent to restore directly. The final two are represented by bounded repeating tables because several original values are unrecoverable. They are exposed through the runtime controls, so later forensic discoveries can be substituted without changing the architecture.
+These relationships remain useful for constructing the 28 recovered texture attractors.
 
-## Implementation choice
+## Current implementation boundary
 
-The artifact contains a partial WGSL compute pass, but not enough intact WebGPU setup/resource code to prove that it was the only intended runtime. The reconstruction therefore implements the same frame-ring, curve-write, scheduling and feedback semantics in dependency-free JavaScript/Canvas2D. This has three advantages:
+The application now has two explicit layers:
 
-1. it works from `file://` like the other recovered projects;
-2. the algorithms are directly testable under Node;
-3. the surviving behavior is restored without importing unrelated XenoField GPU infrastructure merely to make the shader compile.
+1. **Fractal explorer** — WebGL2 camera, geometry/evolution and shader renderer.
+2. **Recovered embellishment** — the original curve/frame-ring system rendered to a texture and sampled by the shader.
 
-A future GPU backend can be added behind the same core contracts if more original evidence appears.
+The fractal explorer is a behavioral reconstruction rather than a byte-for-byte recovery. In particular, the "infinite" camera is intentionally pseudo-fractal/self-similar rather than an arbitrary-precision scientific Mandelbrot engine. The recursive bloom and folded-IFS families are designed to tolerate long-running logarithmic zoom while maintaining visual continuity.
+
+The fixed-silhouette behavior is implemented by evaluating two fields:
+- a static field supplies the silhouette mask;
+- an evolved field supplies moving interior metrics and colour.
+
+This directly represents the remembered "writhing/rotating inside a fixed silhouette" behavior without forcing the geometry itself to remain static.

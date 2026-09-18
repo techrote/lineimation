@@ -239,6 +239,7 @@
         }
       }
 
+      this.groupBaselines = {};
       if (snapshot.groupBaselines && typeof snapshot.groupBaselines === 'object') {
         for (const group of Object.keys(GROUP_SPECS)) {
           const incoming = snapshot.groupBaselines[group];

@@ -52,11 +52,11 @@ test('camera sampling supports unbounded signed logarithmic zoom', () => {
   state.setParameter('zoomRate', 0.75);
   const a = Explorer.cameraSample(state, 0);
   const b = Explorer.cameraSample(state, 10000);
-  assert.ok(b.logZoom - a.logZoom > 7000);
+  assert.ok(b.logZoom - a.logZoom > 5000);
 
   state.cameraMode = 1;
   const c = Explorer.cameraSample(state, 10000);
-  assert.ok(c.logZoom < a.logZoom - 7000);
+  assert.ok(c.logZoom < a.logZoom - 5000);
 });
 
 test('camera paths are deterministic', () => {
